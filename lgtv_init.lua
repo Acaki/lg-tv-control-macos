@@ -176,3 +176,23 @@ watcher:start()
 if control_audio then
   audio_event_tap:start()
 end
+
+watcher = hs.screen.watcher.new(
+  function(event_type)
+    event_name = event_type_description(event_type)
+    log_d("Received event: "..(event_type or "").." "..(event_name))
+
+    if lgtv_disabled() then
+      log_d("LGTV feature disabled. Skipping.")
+      return
+    end
+
+    if not tv_is_connected() then
+      log_d("TV was not turned on because it is not connected")
+      return
+    end
+
+    exec_command("setDeviceInfo " .. tv_input .. " PC")
+  end
+)
+watcher:start()
