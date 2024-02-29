@@ -2,20 +2,20 @@
 -- Tested with LGWebOSRemote as of December 11, 2023.
 --
 
-local tv_input = "HDMI_1" -- Input to which your Mac is connected
-local switch_input_on_wake = true -- Switch input to Mac when waking the TV
+local tv_input = "HDMI_2" -- Input to which your Mac is connected
+local switch_input_on_wake = false -- Switch input to Mac when waking the TV
 local prevent_sleep_when_using_other_input = true -- Prevent sleep when TV is set to other input (ie: you're watching Netflix and your Mac goes to sleep)
-local debug = false  -- If you run into issues, set to true to enable debug messages
-local control_audio = true -- Control TV volume and mute button events from keyboard
+local debug = true -- If you run into issues, set to true to enable debug messages
+local control_audio = false -- Control TV volume and mute button events from keyboard
 local disable_lgtv = false
 -- NOTE: You can disable this script by setting the above variable to true, or by creating a file named
 -- `disable_lgtv` in the same directory as this file, or at ~/.disable_lgtv.
 
 -- You likely will not need to change anything below this line
-local tv_name = "MyTV" -- Name of your TV, set when you run `lgtv auth`
+local tv_name = "42C2" -- Name of your TV, set when you run `lgtv auth`
 local connected_tv_identifiers = {"LG TV", "LG TV SSCR2"} -- Used to identify the TV when it's connected to this computer
 local screen_off_command = "off" -- use "screenOff" to keep the TV on, but turn off the screen.
-local lgtv_path = "~/bin/lgtv" -- Full path to lgtv executable
+local lgtv_path = "~/lgtv/venv/bin/lgtv" -- Full path to lgtv executable
 local lgtv_cmd = lgtv_path.." --ssl --name "..tv_name
 local app_id = "com.webos.app."..tv_input:lower():gsub("_", "")
 
@@ -177,22 +177,34 @@ if control_audio then
   audio_event_tap:start()
 end
 
-watcher = hs.screen.watcher.new(
+screen_watcher = hs.screen.watcher.new(
   function(event_type)
-    event_name = event_type_description(event_type)
-    log_d("Received event: "..(event_type or "").." "..(event_name))
-
     if lgtv_disabled() then
-      log_d("LGTV feature disabled. Skipping.")
+      lgtv_log_d("LGTV feature disabled. Skipping.")
       return
     end
 
-    if not tv_is_connected() then
-      log_d("TV was not turned on because it is not connected")
+    if not lgtv_is_connected() then
+      lgtv_log_d("Input type was not set because it is not connected")
       return
     end
 
-    exec_command("setDeviceInfo " .. tv_input .. " PC")
+    lgtv_exec_command("setDeviceInfo " .. tv_input .. " PC")
   end
 )
-watcher:start()
+screen_watcher:start()
+
+usb_watcher = hs.usb.watcher.new(
+  function(evt)
+    if evt["eventType"] == "added" and evt["productID"] == 364 and lgtv_current_app_id() ~= app_id then
+      lgtv_log_d("Usb mic detected, switching input.")
+      lgtv_exec_command("startApp "..app_id)
+      if screen_off_command == 'screenOff' then
+        lgtv_exec_command("screenOn") -- turn on screen
+      else
+        lgtv_exec_command("on") -- wake on lan
+      end
+    end
+  end
+)
+usb_watcher:start()
